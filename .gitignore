@@ -15,3 +15,4 @@ htmlcov/
 *.flac
 /out/
 /thumbs/
+dist/

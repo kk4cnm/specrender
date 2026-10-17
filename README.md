@@ -8,7 +8,7 @@
 you ask for, in any palette, as PNG, JPG, WebP, BMP, TIFF or GIF. Hour-long
 recordings render without loading the whole spectrogram into memory.
 
-![Annotated stereo spectrogram](docs/images/annotated.png)
+![Annotated stereo spectrogram](https://github.com/kk4cnm/specrender/raw/main/docs/images/annotated.png)
 
 - **Exact output size.** `width` × `height` is what you get, including stereo channels stacked with a gap between them.
 - **Any palette.** 11 built-in palettes that need no matplotlib, any matplotlib colormap name, or your own colors.
@@ -21,7 +21,7 @@ recordings render without loading the whole spectrogram into memory.
 ## Install
 
 ```bash
-pip install "specrender[all] @ git+https://github.com/kk4cnm/specrender"
+pip install "specrender[all]"
 ```
 
 The core install needs only numpy, scipy and Pillow. The extras add more:
@@ -91,7 +91,7 @@ specrender --list-palettes
 
 ## Palettes
 
-![Built-in palettes](docs/images/palettes.png)
+![Built-in palettes](https://github.com/kk4cnm/specrender/raw/main/docs/images/palettes.png)
 
 Add `_r` to any palette name to reverse it (`"gray_r"` gives dark-on-light for print).
 To register your own palette:
@@ -102,10 +102,10 @@ sr.register_palette("brand", ["#0b0b2b", "#3355ff", "#ffffff"])
 
 ## Documentation
 
-- **[User guide](docs/guide.md):** choosing FFT size, frequency scales, dynamic range, channels, long files, and recipes for speech, music and radio.
-- **[API reference](docs/api.md):** every function, method and parameter.
-- **[CLI reference](docs/cli.md):** every flag, with examples.
-- **[Changelog](CHANGELOG.md)**
+- **[User guide](https://github.com/kk4cnm/specrender/blob/main/docs/guide.md):** choosing FFT size, frequency scales, dynamic range, channels, long files, and recipes for speech, music and radio.
+- **[API reference](https://github.com/kk4cnm/specrender/blob/main/docs/api.md):** every function, method and parameter.
+- **[CLI reference](https://github.com/kk4cnm/specrender/blob/main/docs/cli.md):** every flag, with examples.
+- **[Changelog](https://github.com/kk4cnm/specrender/blob/main/CHANGELOG.md)**
 
 ## Development
 
@@ -116,8 +116,8 @@ pytest
 python examples/make_gallery.py   # regenerates docs/images/
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](https://github.com/kk4cnm/specrender/blob/main/CONTRIBUTING.md) for details.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/kk4cnm/specrender/blob/main/LICENSE).

@@ -29,4 +29,4 @@ Install `ffmpeg` too if you want the MP3 test to run instead of being skipped.
 
 1. Bump `version` in `pyproject.toml` and `__version__` in `src/specrender/__init__.py`.
 2. Move the "Unreleased" entries in `CHANGELOG.md` under the new version.
-3. Tag the release: `git tag vX.Y.Z && git push --tags`.
+3. Tag the release: `git tag vX.Y.Z && git push --tags`. The Release workflow builds the package and publishes it to PyPI. This needs the one-time trusted-publisher setup described at the top of `.github/workflows/release.yml`.
