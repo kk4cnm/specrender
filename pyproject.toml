@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "specrender"
+version = "0.1.0"
+description = "Render spectrogram images from audio files with configurable palettes, sizes and formats"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Daniel Nelms" }]
+keywords = ["spectrogram", "audio", "dsp", "fft", "visualization", "sdr", "image"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = ["numpy>=1.22", "scipy>=1.8", "Pillow>=9.1"]
+
+[project.optional-dependencies]
+annotate = ["matplotlib>=3.6"]
+formats = ["soundfile>=0.12"]
+all = ["matplotlib>=3.6", "soundfile>=0.12"]
+dev = ["pytest>=7", "matplotlib>=3.6", "soundfile>=0.12"]
+
+[project.urls]
+Homepage = "https://github.com/kk4cnm/specrender"
+Documentation = "https://github.com/kk4cnm/specrender/tree/main/docs"
+Issues = "https://github.com/kk4cnm/specrender/issues"
+Changelog = "https://github.com/kk4cnm/specrender/blob/main/CHANGELOG.md"
+
+[project.scripts]
+specrender = "specrender.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
