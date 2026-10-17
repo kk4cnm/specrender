@@ -165,3 +165,114 @@ def test_cli_negative_db_range(tmp_path, stereo_wav):
     out = tmp_path / "r.png"
     assert cli_main([str(stereo_wav), "-o", str(out), "--db-range", "-90:0", "-W", "64", "-H", "32"]) == 0
     assert out.exists()
+
+
+# --------------------------------------------------------------------------- #
+# HTML player
+# --------------------------------------------------------------------------- #
+import base64
+import json
+import re
+
+
+def _player_cfg(page: str) -> dict:
+    m = re.search(r'<script type="application/json">(.*?)</script>', page, re.S)
+    return json.loads(m.group(1))
+
+
+def test_player_self_contained(tmp_path, stereo_wav):
+    out = tmp_path / "p.html"
+    page = sr.player(stereo_wav, out, channel="all", scale="log", palette="viridis", height=240)
+    assert out.read_text(encoding="utf-8") == page
+    assert "customElements.define(\"spectro-player\"" in page
+    cfg = _player_cfg(page)
+    assert cfg["duration"] == pytest.approx(1.0)
+    assert cfg["title"] == "stereo.wav" and cfg["height"] == 240
+    assert len(cfg["channels"]) == 2 and cfg["channels"][0]["top"] == 0
+    assert cfg["image"].startswith("data:image/png;base64,")
+    assert cfg["audio"].startswith("data:audio/wav;base64,")   # original WAV embedded as-is
+    assert base64.b64decode(cfg["audio"].split(",", 1)[1]) == stereo_wav.read_bytes()
+    assert all(0 <= t["pos"] <= 1 for t in cfg["yticks"]) and len(cfg["yticks"]) >= 2
+
+
+def test_player_crop_reencodes_segment(stereo_wav):
+    cfg = _player_cfg(sr.player(stereo_wav, start=0.25, end=0.75, audio="wav"))
+    assert cfg["duration"] == pytest.approx(0.5) and cfg["time_offset"] == pytest.approx(0.25)
+    wav = base64.b64decode(cfg["audio"].split(",", 1)[1])
+    from scipy.io import wavfile
+    rate, data = wavfile.read(io.BytesIO(wav))
+    assert rate == FS and data.shape == (FS // 2, 2)   # stereo kept even though the view is a mix
+
+
+def test_player_array_and_audio_url():
+    cfg = _player_cfg(sr.player(tone(500), sample_rate=FS, audio_url="https://example.com/a.mp3", start=0.2))
+    assert cfg["audio"] == "https://example.com/a.mp3" and cfg["audio_offset"] == pytest.approx(0.2)
+    cfg = _player_cfg(sr.player(tone(500), sample_rate=FS, audio="wav"))
+    assert cfg["audio"].startswith("data:audio/wav")
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
+def test_player_compresses_when_large(stereo_wav):
+    cfg = _player_cfg(sr.player(stereo_wav, max_embed_mb=0.001))
+    assert cfg["audio"].startswith("data:audio/mpeg")
+
+
+def test_player_script_breakout_is_escaped(stereo_wav):
+    page = sr.player(stereo_wav, title="</script><b>x")
+    assert "</script><b>" not in page.split('<script type="application/json">', 1)[1].split("</spectro-player>")[0]
+    assert _player_cfg(page)["title"] == "</script><b>x"
+
+
+def test_player_rejects_bad_options(stereo_wav):
+    with pytest.raises(TypeError):
+        sr.player(stereo_wav, colour="red")
+    with pytest.raises(ValueError):
+        sr.player(stereo_wav, annotate=True)
+
+
+def test_export_player(tmp_path, stereo_wav):
+    out = sr.export_player(stereo_wav, tmp_path / "web", image_format="webp")
+    d = tmp_path / "web"
+    assert {p.name for p in d.iterdir()} == {"stereo.webp", "stereo.json", "stereo.wav",
+                                             "specrender-player.js", "stereo.html"}
+    meta = json.loads((d / "stereo.json").read_text())
+    assert meta["image"] == "stereo.webp" and meta["audio"] == "stereo.wav"
+    assert out["embed"] == '<spectro-player meta="stereo.json"></spectro-player>'
+    assert 'src="specrender-player.js"' in (d / "stereo.html").read_text()
+
+
+def test_cli_html(tmp_path, stereo_wav):
+    out = tmp_path / "cli.html"
+    assert cli_main([str(stereo_wav), "-o", str(out), "-s", "mel", "-H", "200"]) == 0
+    assert _player_cfg(out.read_text(encoding="utf-8"))["scale"] == "mel"
+    assert cli_main([str(stereo_wav), "-f", "html", "--web", "-d", str(tmp_path / "w")]) == 0
+    assert (tmp_path / "w" / "stereo.json").exists()
+
+
+def test_player_js_ships_with_package():
+    js = sr.player_js()
+    assert "spectro-player" in js and len(js) > 5000
+
+
+def test_export_player_cropped_never_overwrites_source(tmp_path):
+    src = tmp_path / "rec.wav"
+    wavfile.write(src, FS, (tone(800, 2.0) * 32767).astype(np.int16))
+    before = src.read_bytes()
+    out = sr.export_player(src, tmp_path, start=0.5, end=1.0, audio="wav")
+    assert src.read_bytes() == before                       # source untouched
+    assert out["audio"].name == "rec.player.wav"
+    meta = json.loads(out["meta"].read_text())
+    assert meta["audio"] == "rec.player.wav" and meta["duration"] == pytest.approx(0.5)
+    # uncropped export into the same folder just references the source
+    out2 = sr.export_player(src, tmp_path)
+    assert out2["audio"] == src and json.loads(out2["meta"].read_text())["audio"] == "rec.wav"
+
+
+def test_export_player_urlencodes_names(tmp_path):
+    src = tmp_path / "take #1.wav"
+    wavfile.write(src, FS, (tone(800) * 32767).astype(np.int16))
+    out = sr.export_player(src, tmp_path / "w")
+    meta = json.loads(out["meta"].read_text())
+    assert meta["image"] == "take%20%231.png" and meta["audio"] == "take%20%231.wav"
+    assert out["embed"] == '<spectro-player meta="take%20%231.json"></spectro-player>'
+    assert (tmp_path / "w" / "take #1.json").exists()

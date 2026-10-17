@@ -12,6 +12,8 @@ import specrender as sr
 | [`render_batch()`](#render_batch) | Render many files into a folder |
 | [`save_image()`](#save_image) | Save a PIL image, picking the format from the extension |
 | [`load_audio()`](#load_audio) | Decode an audio file to a float32 array |
+| [`player()`](#player) | Write a self-contained interactive HTML player |
+| [`export_player()`](#export_player) | Write player files for embedding in your own pages |
 | [`get_palette()`](#get_palette), [`list_palettes()`](#list_palettes), [`register_palette()`](#register_palette) | Palettes |
 | `AudioLoadError` | Raised when no loader can decode a file |
 
@@ -162,6 +164,52 @@ sr.load_audio(path, *, start=0.0, end=None, sample_rate=None) -> (ndarray, int)
 Returns float32 samples in [-1, 1] shaped `(channels, n)`, plus the sample
 rate. It tries scipy (WAV), then `soundfile`, then `ffmpeg`. If all fail, it
 raises `AudioLoadError` with each loader's message.
+
+---
+
+## `player`
+
+```python
+sr.player(source, output=None, *, audio_url=None, audio="auto", max_embed_mb=25.0,
+          title=None, theme="dark", width=1600, height=300, image_format="png",
+          **options) -> str
+```
+
+Builds a single HTML page containing the spectrogram, the audio and the
+`<spectro-player>` script, writes it to `output` if you give one, and returns the HTML.
+
+| Parameter | Default | Description |
+|---|---|---|
+| `source` | — | File path, or array with `sample_rate=` |
+| `audio_url` | `None` | Play this URL instead of embedding audio. With `start=`, the player seeks within it |
+| `audio` | `"auto"` | `"auto"`, `"original"`, `"mp3"`, `"m4a"` or `"wav"` (see the [guide](guide.md#how-the-audio-gets-into-the-page)) |
+| `max_embed_mb` | `25` | With `"auto"`, larger browser-playable files are compressed to MP3 |
+| `title` | file name | Shown above the player |
+| `theme` | `"dark"` | `"dark"` or `"light"` |
+| `width`, `height` | `1600`, `300` | Spectrogram image pixels. `height` is also the on-screen height |
+| `image_format` | `"png"` | `"png"`, `"webp"` or `"jpeg"` |
+| `**options` | | Any `compute()` / `to_image()` option except `annotate` |
+
+## `export_player`
+
+```python
+sr.export_player(source, out_dir, *, name=None, audio_url=None, audio="auto",
+                 title=None, theme="dark", width=1600, height=300,
+                 image_format="png", **options) -> dict
+```
+
+Writes `specrender-player.js`, `<name>.<image_format>`, `<name>.json`, the
+audio (unless `audio_url` is given) and an example `<name>.html` into `out_dir`.
+Returns `{"image", "meta", "script", "example", "audio"?: Path, "embed": str}`.
+Unlike `player()`, audio is never compressed by size here; pass `audio="mp3"` to force it.
+
+## `player_js`
+
+```python
+sr.player_js() -> str
+```
+
+The `<spectro-player>` web component source, for bundling it yourself.
 
 ---
 

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - Unreleased
+
+### Added
+- Interactive HTML player: `sr.player()` writes one self-contained page with the spectrogram and audio. Click to jump, drag the playhead to scrub, drag to select a region and loop it, resize the selection by its edges, and use the play/pause, volume, mute and speed controls, keyboard shortcuts, and the time and frequency readout on hover.
+- `sr.export_player()` and the `<spectro-player>` web component for embedding players in your own pages, with a JavaScript API (`play`, `pause`, `currentTime`, `selection`, `loop`) and `spectro-selection`/`spectro-time` events.
+- CLI: `-o file.html` / `-f html` writes a player. New `--audio`, `--audio-url` and `--web` options.
+- Browser end-to-end test (`tests/browser_check.py`), run in CI.
+
 ## [0.1.0] - 2026-10-17
 
 ### Added
@@ -18,4 +26,5 @@ All notable changes to this project are documented here. The format follows
 - Audio loading through scipy (WAV), soundfile (FLAC/OGG/AIFF) and ffmpeg (MP3/M4A/Opus/video).
 - `specrender` command-line tool.
 
+[0.2.0]: https://github.com/kk4cnm/specrender/releases/tag/v0.2.0
 [0.1.0]: https://github.com/kk4cnm/specrender/releases/tag/v0.1.0

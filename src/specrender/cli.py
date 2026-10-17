@@ -23,11 +23,11 @@ def _channel(s: str):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="specrender", description="Render spectrogram images from audio files.")
+    p = argparse.ArgumentParser(prog="specrender", description="Render spectrogram images, or interactive HTML players, from audio files.")
     p.add_argument("inputs", nargs="*", type=Path, help="audio file(s)")
     p.add_argument("-o", "--output", type=Path, help="output file (single input only)")
     p.add_argument("-d", "--out-dir", type=Path, help="output directory (default: next to input)")
-    p.add_argument("-f", "--format", default=None, help="png, jpg, webp, bmp, tiff, gif (default: from -o or png)")
+    p.add_argument("-f", "--format", default=None, help="png, jpg, webp, bmp, tiff, gif, or html for an interactive player (default: from -o or png)")
     p.add_argument("-q", "--quality", type=int, default=92, help="JPEG/WebP quality (default 92)")
 
     g = p.add_argument_group("size & look")
@@ -38,8 +38,16 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--db-range", type=_db_range, help="fixed dBFS range LOW:HIGH (consistent across files)")
     g.add_argument("--gamma", type=float, default=1.0, help=">1 brightens quiet detail")
     g.add_argument("-a", "--annotate", action="store_true", help="add axes, labels and colorbar (needs matplotlib)")
-    g.add_argument("--title", help="title for --annotate (use {name} for the file name)")
-    g.add_argument("--light", action="store_true", help="light theme for --annotate")
+    g.add_argument("--title", help="title for --annotate or the HTML player ({name} = file name)")
+    g.add_argument("--light", action="store_true", help="light theme for --annotate or the HTML player")
+
+    h = p.add_argument_group("html player (-f html or -o file.html)")
+    h.add_argument("--audio", choices=["auto", "original", "m4a", "mp3", "wav"], default="auto",
+                   help="how audio is embedded (default auto: original if browser-playable and small, else compressed)")
+    h.add_argument("--audio-url", help="link to audio at this URL instead of embedding it")
+    h.add_argument("--web", action="store_true",
+                   help="write separate files (JS, image, JSON, audio) for embedding in your own pages, "
+                        "instead of one self-contained HTML file")
 
     a = p.add_argument_group("analysis")
     a.add_argument("-s", "--scale", choices=["linear", "log", "mel"], default="linear", help="frequency axis (default linear)")
@@ -94,6 +102,9 @@ def main(argv=None) -> int:
         else:
             dst = (args.out_dir or src.parent) / f"{src.stem}.{fmt}"
         try:
+            if fmt in ("html", "htm"):
+                _player(args, src, dst, palette)
+                continue
             spec = compute(
                 src, channel=args.channel, start=args.start, end=args.end, n_fft=args.n_fft,
                 hop_length=args.hop, window=args.window, scale=args.scale, fmin=args.fmin,
@@ -112,6 +123,27 @@ def main(argv=None) -> int:
             failures += 1
             print(f"error: {src}: {e}", file=sys.stderr)
     return 1 if failures else 0
+
+
+def _player(args, src: Path, dst: Path, palette) -> None:
+    from .player import export_player, player
+
+    opts = dict(
+        channel=args.channel, start=args.start, end=args.end, n_fft=args.n_fft, hop_length=args.hop,
+        window=args.window, scale=args.scale, fmin=args.fmin, fmax=args.fmax, aggregate=args.aggregate,
+        pre_emphasis=args.pre_emphasis, palette=palette, dynamic_range=args.dynamic_range,
+        db_range=args.db_range, gamma=args.gamma, width=args.width, height=args.height,
+        title=args.title.format(name=src.name) if args.title else None,
+        theme="light" if args.light else "dark", audio=args.audio, audio_url=args.audio_url,
+    )
+    if args.web:
+        out = export_player(src, args.out_dir or (dst.parent if args.output else src.parent),
+                            name=dst.stem, **opts)
+        print(f"{src} -> {out['example']} (+ {out['meta'].name}, {out['image'].name}, "
+              f"{out['script'].name}{', ' + out['audio'].name if 'audio' in out else ''})")
+    else:
+        player(src, dst, **opts)
+        print(f"{src} -> {dst}")
 
 
 if __name__ == "__main__":

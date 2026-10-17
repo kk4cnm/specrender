@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "specrender"
-version = "0.1.0"
-description = "Render spectrogram images from audio files with configurable palettes, sizes and formats"
+version = "0.2.0"
+description = "Render spectrogram images and interactive HTML spectrogram players from audio files"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -28,6 +28,7 @@ annotate = ["matplotlib>=3.6"]
 formats = ["soundfile>=0.12"]
 all = ["matplotlib>=3.6", "soundfile>=0.12"]
 dev = ["pytest>=7", "matplotlib>=3.6", "soundfile>=0.12"]
+browser = ["playwright>=1.40"]
 
 [project.urls]
 Homepage = "https://github.com/kk4cnm/specrender"
@@ -40,6 +41,9 @@ specrender = "specrender.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+specrender = ["web/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
