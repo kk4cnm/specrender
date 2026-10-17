@@ -14,7 +14,7 @@ Install `ffmpeg` too if you want the MP3 test to run instead of being skipped.
 
 ## Before opening a pull request
 
-- Run `pytest`, and make sure it passes.
+- Run `pytest`, and make sure it passes. If you changed the player, also run `pip install -e ".[browser]" && python -m playwright install chromium && python tests/browser_check.py docs/player-demo.html`.
 - Add a test for any bug fix or new option. Tests generate their own signals with numpy, so please don't commit audio files.
 - If you change something users can see, update `README.md`, the files in `docs/`, and `CHANGELOG.md` (under an "Unreleased" heading).
 - If you change how images look, run `python examples/make_gallery.py` and commit the updated `docs/images/`.

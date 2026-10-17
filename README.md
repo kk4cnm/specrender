@@ -4,9 +4,10 @@
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-**Render spectrogram images from audio files.** You get exactly the pixel size
-you ask for, in any palette, as PNG, JPG, WebP, BMP, TIFF or GIF. Hour-long
-recordings render without loading the whole spectrogram into memory.
+**Render spectrogram images from audio files**, or **interactive HTML players**
+that play the audio over its spectrogram. Images come out at exactly the
+pixel size you ask for, in any palette, as PNG, JPG, WebP, BMP, TIFF or GIF.
+Hour-long recordings render without loading the whole spectrogram into memory.
 
 ![Annotated stereo spectrogram](https://github.com/kk4cnm/specrender/raw/main/docs/images/annotated.png)
 
@@ -16,6 +17,7 @@ recordings render without loading the whole spectrogram into memory.
 - **Comparable levels.** Levels are measured in dBFS, so a fixed `db_range` puts many files on the same brightness scale.
 - **Short events stay visible when you scale down.** Max-pooling keeps a 1 ms click in a 10-minute file on screen.
 - **Most audio formats.** WAV needs nothing extra. FLAC, OGG and AIFF use `soundfile`. MP3, M4A, Opus and video files use `ffmpeg`. Numpy arrays also work as input.
+- **Interactive player.** A single HTML file with play/pause, volume and speed controls. Click to jump, drag the playhead to scrub, and drag across the spectrogram to select a region and loop it.
 - **Library and CLI.** Use `sr.render(...)` from Python, or run `specrender *.wav -d out/`.
 
 ## Install
@@ -80,12 +82,58 @@ sr.render_batch(sorted(Path("clips").glob("*.wav")), "out/", format="webp",
                 width=600, height=200, shared_levels=True)
 ```
 
+## Interactive player
+
+![Interactive spectrogram player](https://github.com/kk4cnm/specrender/raw/main/docs/images/player.png)
+
+```python
+sr.player("recording.mp3", "recording.html", scale="mel", fmax=8000, palette="magma")
+```
+
+```bash
+specrender recording.mp3 -o recording.html
+```
+
+This writes **one self-contained HTML file**, with the spectrogram, the audio
+and the player script all inside it. Open it in any browser; no server or
+internet connection is needed.
+
+| Do this | To |
+|---|---|
+| Click | Jump to that point |
+| Drag the white playhead | Scrub |
+| Drag across the spectrogram | Select a region. Playback loops inside it |
+| Drag a selection edge | Resize the selection |
+| Double-click or <kbd>Esc</kbd> | Clear the selection |
+| <kbd>Space</kbd> · <kbd>←</kbd>/<kbd>→</kbd> (<kbd>Shift</kbd> = 5 s) · <kbd>L</kbd> | Play/pause · seek · toggle loop |
+
+Hover over the spectrogram to read the time and frequency under the cursor.
+There are also a volume slider, a mute button and a playback-speed menu.
+
+**On your own website**, write separate files and use the `<spectro-player>` tag:
+
+```python
+sr.export_player("talk.mp3", "site/players/")   # specrender-player.js, talk.png, talk.json, talk.mp3
+```
+
+```html
+<script src="players/specrender-player.js" defer></script>
+<spectro-player meta="players/talk.json"></spectro-player>
+```
+
+Large files can stay where they're hosted: pass `audio_url="https://…/talk.mp3"`
+and only the image and settings are generated. Try
+[`docs/player-demo.html`](https://github.com/kk4cnm/specrender/raw/main/docs/player-demo.html)
+(download it, then open it), or see the
+[player guide](https://github.com/kk4cnm/specrender/blob/main/docs/guide.md#interactive-html-player).
+
 ## Command line
 
 ```bash
 specrender talk.mp3 -o talk.png -W 1600 -H 500 -p inferno -s mel --fmax 8000
 specrender *.wav -d thumbs/ -f webp -W 400 -H 120 --db-range -90:0
 specrender capture.flac -o annotated.png -a --title "{name}" -s log
+specrender session.flac -o session.html -s log      # interactive player
 specrender --list-palettes
 ```
 

@@ -13,6 +13,7 @@ to pick each one. For the full list of parameters, see the [API reference](api.m
 - [Palettes](#palettes)
 - [Output formats](#output-formats)
 - [Audio input](#audio-input)
+- [Interactive HTML player](#interactive-html-player)
 - [Recipes](#recipes)
 - [Troubleshooting](#troubleshooting)
 
@@ -160,6 +161,85 @@ The loader tries each method in this order:
 `start`/`end` crop the audio before analysis. `sample_rate=` resamples it,
 which is useful for making many files share a frequency axis. Numpy arrays
 need `sample_rate=` and may be shaped `(n,)`, `(channels, n)` or `(n, channels)`.
+
+## Interactive HTML player
+
+`sr.player()` (or `specrender file -o file.html`) writes a page where the
+audio plays over its spectrogram, with a playhead that follows playback.
+
+![player](images/player.png)
+
+### Controls
+
+| Action | Result |
+|---|---|
+| Click anywhere | Jump there. A click outside the selection also clears it |
+| Drag the white playhead | Scrub |
+| Drag across empty space | Select a region; the playhead moves to its start |
+| Drag a selection edge | Resize the selection |
+| Double-click, <kbd>Esc</kbd>, or ✕ | Clear the selection |
+| **Loop selection** button or <kbd>L</kbd> | On: playback repeats inside the selection. Off: playback stops at the selection's end |
+| <kbd>Space</kbd> / <kbd>K</kbd> | Play / pause |
+| <kbd>←</kbd> <kbd>→</kbd> | Seek 1 s (5 s with <kbd>Shift</kbd>) |
+| <kbd>Home</kbd> / <kbd>End</kbd> | Go to the start or end (of the selection, if there is one) |
+
+Hovering shows the time and frequency under the cursor. The speed menu
+(0.5×–2×) keeps the pitch unchanged. The volume setting is remembered between visits.
+Pressing Play when the playhead is outside the selection starts from the
+selection's start. Starting one player pauses any other player on the same page.
+
+### How the audio gets into the page
+
+| `audio=` | What's embedded |
+|---|---|
+| `"auto"` (default) | The original file if browsers can play it (MP3, WAV, OGG/Opus, FLAC, M4A/AAC, WebM) and it's under `max_embed_mb` (25 MB). Otherwise it's converted to MP3 with ffmpeg, or to WAV if ffmpeg isn't installed |
+| `"original"` | Always the original file |
+| `"mp3"` / `"m4a"` / `"wav"` | Always converted to that format (MP3 and M4A need ffmpeg) |
+| `audio_url="https://…"` | Nothing is embedded. The page plays that URL instead |
+
+With `start`/`end`, only that segment is embedded, and the time labels still
+show the original file's times. With `audio_url`, the player seeks within the
+full remote file instead.
+
+The embedded audio always has every channel, even when the spectrogram shows
+a mono mix or a single channel. MP3 is the default compression because it
+plays in every browser. Some open-source browser builds can't play M4A/AAC.
+
+### Embedding in your own pages
+
+```python
+files = sr.export_player("talk.mp3", "site/players/", palette="viridis", scale="mel")
+print(files["embed"])   # <spectro-player meta="talk.json"></spectro-player>
+```
+
+This writes `specrender-player.js` (one copy serves every player on the site),
+`talk.png`, `talk.json` and a copy of the audio, plus `talk.html` as a
+working example. The tag fetches its JSON, so serve the folder over HTTP,
+for example with `python -m http.server`. Browsers block `fetch` from
+`file://` pages. The single-file `sr.player()` output has no such limit.
+
+Attributes: `meta` (JSON URL), `src` (overrides the audio URL), `image`
+(overrides the image URL), `height` (pixels), `theme="light"`.
+
+From JavaScript, the element has `play()`, `pause()`, `currentTime`, `duration`,
+`selection` (`{start, end}` or `null`) and `loop`. It fires `spectro-selection`
+and `spectro-time` events, both with times in the original file's seconds:
+
+```js
+const p = document.querySelector("spectro-player");
+p.addEventListener("spectro-selection", e => console.log(e.detail));   // {start, end} or null
+p.selection = { start: 12.0, end: 14.5 }; p.play();
+```
+
+### Limits
+
+- Loop timing comes from the browser's animation frames, so the loop point is
+  accurate to roughly 20 ms. That's fine for listening, but it isn't a
+  sample-accurate loop.
+- Very large embedded files make very large HTML files: base64 adds a third.
+  Above a few tens of MB, use `audio_url=` or `export_player()`.
+- The spectrogram is a fixed image stretched to the page width, so there's no
+  zooming yet. To look closer, render a narrower `start`/`end` range.
 
 ## Recipes
 
