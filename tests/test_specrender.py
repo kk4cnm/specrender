@@ -252,3 +252,27 @@ def test_cli_html(tmp_path, stereo_wav):
 def test_player_js_ships_with_package():
     js = sr.player_js()
     assert "spectro-player" in js and len(js) > 5000
+
+
+def test_export_player_cropped_never_overwrites_source(tmp_path):
+    src = tmp_path / "rec.wav"
+    wavfile.write(src, FS, (tone(800, 2.0) * 32767).astype(np.int16))
+    before = src.read_bytes()
+    out = sr.export_player(src, tmp_path, start=0.5, end=1.0, audio="wav")
+    assert src.read_bytes() == before                       # source untouched
+    assert out["audio"].name == "rec.player.wav"
+    meta = json.loads(out["meta"].read_text())
+    assert meta["audio"] == "rec.player.wav" and meta["duration"] == pytest.approx(0.5)
+    # uncropped export into the same folder just references the source
+    out2 = sr.export_player(src, tmp_path)
+    assert out2["audio"] == src and json.loads(out2["meta"].read_text())["audio"] == "rec.wav"
+
+
+def test_export_player_urlencodes_names(tmp_path):
+    src = tmp_path / "take #1.wav"
+    wavfile.write(src, FS, (tone(800) * 32767).astype(np.int16))
+    out = sr.export_player(src, tmp_path / "w")
+    meta = json.loads(out["meta"].read_text())
+    assert meta["image"] == "take%20%231.png" and meta["audio"] == "take%20%231.wav"
+    assert out["embed"] == '<spectro-player meta="take%20%231.json"></spectro-player>'
+    assert (tmp_path / "w" / "take #1.json").exists()

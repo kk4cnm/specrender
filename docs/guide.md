@@ -235,7 +235,9 @@ p.selection = { start: 12.0, end: 14.5 }; p.play();
 
 - Loop timing comes from the browser's animation frames, so the loop point is
   accurate to roughly 20 ms. That's fine for listening, but it isn't a
-  sample-accurate loop.
+  sample-accurate loop. In a background tab, browsers pause animation frames,
+  and the loop falls back to the audio element's own time updates. It still
+  holds, but it can overshoot by up to about a quarter of a second.
 - Very large embedded files make very large HTML files: base64 adds a third.
   Above a few tens of MB, use `audio_url=` or `export_player()`.
 - The spectrogram is a fixed image stretched to the page width, so there's no

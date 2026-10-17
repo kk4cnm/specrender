@@ -1,6 +1,6 @@
 """End-to-end check of the HTML player in headless Chromium (Playwright).
 
-    python tests/browser_check.py PLAYER.html [SCREENSHOT.png]
+    python tests/browser_check.py PLAYER.html [SCREENSHOT.png|-] [OFFSET_PLAYER.html]
 
 Exercises: load, click-to-seek, playhead scrub, drag-select, edge resize,
 loop playback inside the selection, stop-at-end without loop, keyboard,
@@ -16,7 +16,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
-def main(page_path: str, shot: str | None = None) -> None:
+def main(page_path: str, shot: str | None = None, offset_page: str | None = None) -> None:
     url = Path(page_path).resolve().as_uri()
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
@@ -77,6 +77,22 @@ def main(page_path: str, shot: str | None = None) -> None:
         check(abs(s["end"] - dur * .3) < dur * .01 and abs(s["start"] - dur * .2) < dur * .01,
               f"edge drag resizes to {s['start']:.2f}-{s['end']:.2f}s")
 
+        # the playhead now sits on the left edge: dragging that edge must resize, not scrub
+        check(abs(t() - s["start"]) < 0.02, "playhead sits on the left edge")
+        page.mouse.move(X(0.2), Y); page.mouse.down()
+        page.mouse.move(X(0.17), Y); page.mouse.move(X(0.15), Y); page.mouse.up()
+        s = sel()
+        check(abs(s["start"] - dur * .15) < dur * .01 and abs(s["end"] - dur * .3) < dur * .01,
+              f"left edge under the playhead resizes to {s['start']:.2f}-{s['end']:.2f}s")
+
+        # the clear button keeps keyboard focus while playback re-renders every frame
+        page.evaluate(f"{P}.shadowRoot.querySelector('.selclear').focus()")
+        page.evaluate(f"{P}.play()"); time.sleep(0.4)
+        focused = page.evaluate(f"{P}.shadowRoot.activeElement && {P}.shadowRoot.activeElement.className")
+        page.evaluate(f"{P}.pause()")
+        check(focused == "selclear", f"clear button keeps focus during playback ({focused})")
+        page.evaluate(f"{P}.currentTime = {P}.selection.start")
+
         # loop playback within the selection
         a, b = s["start"], s["end"]
         page.evaluate(f"{P}.play()")
@@ -132,8 +148,35 @@ def main(page_path: str, shot: str | None = None) -> None:
         page.mouse.dblclick(X(0.65), Y)
         check(sel() is None, "double-click clears selection")
 
+        # background tab: browsers stop animation frames, but the loop must still hold
+        page.evaluate(f"{P}.selection = {{start: {P}.duration*0.5, end: {P}.duration*0.5 + 0.8}}; {P}.loop = true")
+        page.evaluate("window.__raf = window.requestAnimationFrame; window.requestAnimationFrame = () => 0; 0")
+        page.evaluate(f"{P}.play()")
+        s = sel(); seen, wrapped, last = [], False, None
+        t_end = time.time() + 2.6
+        while time.time() < t_end:
+            now = t(); seen.append(now)
+            wrapped |= last is not None and now < last - 0.05
+            last = now; time.sleep(0.05)
+        page.evaluate(f"{P}.pause(); window.requestAnimationFrame = window.__raf; 0")
+        check(wrapped and max(seen) < s["end"] + 0.4,
+              f"loop holds without animation frames (max {max(seen):.2f}s vs end {s['end']:.2f}s)")
+
         check(not errors, f"no page errors during interaction {errors}")
-        if shot:
+
+        if offset_page:
+            q = browser.new_page()
+            q.goto(Path(offset_page).resolve().as_uri())
+            q.wait_for_function(f"{P} && {P}.duration > 0 && {P}.shadowRoot.querySelector('audio').readyState >= 1")
+            q.wait_for_timeout(300)
+            ct = q.evaluate(f"{P}.currentTime")
+            check(abs(ct) < 0.05, f"hosted audio with start offset begins at the view start ({ct:.2f})")
+            q.evaluate(f"{P}.play()"); q.wait_for_timeout(500)
+            ft = q.evaluate(f"{P}.shadowRoot.querySelector('audio').currentTime")
+            off = q.evaluate(f"JSON.parse({P}.querySelector('script').textContent).audio_offset")
+            check(ft >= off, f"plays from file time {ft:.2f}s (offset {off}s), not before the view")
+            q.close()
+        if shot and shot != "-":
             page.mouse.move(X(0.25), Y); page.mouse.down(); page.mouse.move(X(0.45), Y); page.mouse.up()
             page.evaluate(f"{P}.currentTime = {P}.selection.start + 0.6*({P}.selection.end-{P}.selection.start)")
             page.mouse.move(X(0.38), box["y"] + box["h"] * 0.3)
@@ -144,4 +187,4 @@ def main(page_path: str, shot: str | None = None) -> None:
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:3])
+    main(*sys.argv[1:4])

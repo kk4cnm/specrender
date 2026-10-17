@@ -72,6 +72,7 @@ button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
 .time b{font-weight:600}
 .selinfo{color:var(--muted);font-variant-numeric:tabular-nums;min-width:12em}
 .selinfo button{height:22px;min-width:22px;padding:0 6px;margin-left:6px;font-size:12px}
+.selinfo button[hidden]{display:none}
 .spacer{flex:1}
 select{height:30px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--fg);font:inherit;padding:0 4px}
 .vol{display:inline-flex;align-items:center;gap:4px}
@@ -137,6 +138,7 @@ input[type=range]{width:96px;accent-color:var(--accent)}
     connectedCallback() {
       players.add(this);
       if (!this._built) { this._build(); this._built = true; this._load(); }
+      this._ro.observe(this._plot);
     }
     disconnectedCallback() {
       players.delete(this);
@@ -167,7 +169,7 @@ input[type=range]{width:96px;accent-color:var(--accent)}
     <button class="play" type="button" aria-label="Play">${ICONS.play}</button>
     <span class="time"><b class="cur">0:00.0</b> / <span class="dur">0:00.0</span></span>
     <button class="loopbtn" type="button" aria-pressed="true" title="Loop selection (L)">${ICONS.loop}<span>Loop selection</span></button>
-    <span class="selinfo" aria-live="polite"></span>
+    <span class="selinfo"><span class="seltext" aria-live="polite"></span><button class="selclear" type="button" title="Clear selection (Esc)" aria-label="Clear selection" hidden>✕</button></span>
     <span class="spacer"></span>
     <label title="Playback speed"><select class="rate" aria-label="Playback speed">
       <option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option>
@@ -183,7 +185,7 @@ input[type=range]{width:96px;accent-color:var(--accent)}
         _title: $(".title"), _yaxis: $(".yaxis"), _plot: $(".plot"), _img: $(".plot img"),
         _selEl: $(".sel"), _dimL: $(".dim.l"), _dimR: $(".dim.r"), _head: $(".head"), _hover: $(".hover"),
         _tip: $(".tip"), _xaxis: $(".xaxis"), _playBtn: $(".play"), _cur: $(".cur"), _dur: $(".dur"),
-        _loopBtn: $(".loopbtn"), _selInfo: $(".selinfo"), _rate: $(".rate"), _muteBtn: $(".mutebtn"),
+        _loopBtn: $(".loopbtn"), _selText: $(".seltext"), _selClear: $(".selclear"), _rate: $(".rate"), _muteBtn: $(".mutebtn"),
         _vol: $(".volume"), _err: $(".err"), _audio: $("audio"),
       });
 
@@ -197,7 +199,10 @@ input[type=range]{width:96px;accent-color:var(--accent)}
       a.addEventListener("play", () => { this._onPlayState(); this._tick(); });
       a.addEventListener("pause", () => this._onPlayState());
       a.addEventListener("ended", () => this._onEnded());
-      a.addEventListener("timeupdate", () => { if (a.paused) this._render(); });
+      a.addEventListener("timeupdate", () => { if (a.paused) this._render(); else this._enforce(); });
+      a.addEventListener("loadedmetadata", () => {     // hosted audio with an offset: start at the view
+        if (this._off && a.currentTime < this._off) this._seek(0);
+      });
       a.addEventListener("seeked", () => this._render());
       a.addEventListener("error", () => {
         const type = this._cfg && this._cfg.audio_type;
@@ -206,6 +211,7 @@ input[type=range]{width:96px;accent-color:var(--accent)}
 
       this._playBtn.addEventListener("click", () => (a.paused ? this._play() : a.pause()));
       this._loopBtn.addEventListener("click", () => { this.loop = !this._loop; });
+      this._selClear.addEventListener("click", () => { this._setSel(null); this._plot.focus({ preventScroll: true }); });
       this._rate.addEventListener("change", () => { a.playbackRate = parseFloat(this._rate.value); });
       this._vol.addEventListener("input", () => {
         a.volume = parseFloat(this._vol.value); a.muted = false; this._syncVol();
@@ -223,7 +229,6 @@ input[type=range]{width:96px;accent-color:var(--accent)}
       p.addEventListener("keydown", e => this._key(e));
 
       this._ro = new ResizeObserver(() => { this._xTicks(); this._render(); });
-      this._ro.observe(p);
     }
 
     async _load() {
@@ -334,7 +339,7 @@ input[type=range]{width:96px;accent-color:var(--accent)}
     async _play() {
       const a = this._audio, s = this._sel, t = this.currentTime;
       if (s && (t < s[0] || t >= s[1] - 0.005)) this._seek(s[0]);
-      else if (!s && t >= this.duration - 0.005) this._seek(0);
+      else if (!s && (t < 0 || t >= this.duration - 0.005)) this._seek(0);
       for (const p of players) if (p !== this) p.pause();
       try { await a.play(); } catch (e) { if (e.name !== "AbortError") this._showErr("Playback failed: " + e.message); }
     }
@@ -358,18 +363,27 @@ input[type=range]{width:96px;accent-color:var(--accent)}
     _tick() {
       cancelAnimationFrame(this._raf);
       const step = () => {
-        const a = this._audio;
-        if (a.paused) return;
-        const t = this.currentTime, s = this._sel;
-        if (s && t >= s[1]) {
-          if (this._loop) this._seek(s[0]); else { a.pause(); this._seek(s[1]); }
-        } else if (t >= this.duration) {          // view window ends before the audio file does
-          a.pause(); this._seek(this.duration);
-        }
+        if (this._audio.paused) return;
+        this._enforce();
         this._render();
         this._raf = requestAnimationFrame(step);
       };
       this._raf = requestAnimationFrame(step);
+    }
+
+    // Keep playback inside the selection / view. Runs every animation frame and
+    // on "timeupdate" (which keeps firing in background tabs, where rAF stops).
+    _enforce() {
+      const a = this._audio;
+      if (a.paused) return;
+      const t = this.currentTime, s = this._sel;
+      if (s && t >= s[1]) {
+        if (this._loop) this._seek(s[0]); else { a.pause(); this._seek(s[1]); }
+      } else if (t >= this.duration) {            // view window ends before the audio file does
+        a.pause(); this._seek(this.duration);
+      } else if (t < 0) {                         // hosted audio playing before the view starts
+        this._seek(0);
+      }
     }
 
     // ---- selection
@@ -389,11 +403,13 @@ input[type=range]{width:96px;accent-color:var(--accent)}
     _hit(clientX, pointerType) {
       const r = this._plot.getBoundingClientRect(), x = clientX - r.left;
       const tol = pointerType === "touch" ? 16 : 7;
-      if (Math.abs(x - this._xOf(this.currentTime)) <= tol) return "head";
+      // Selection edges win over the playhead: after selecting, the playhead sits on
+      // the left edge, and the edge must stay resizable. Click inside to move the head.
       if (this._sel) {
         if (Math.abs(x - this._xOf(this._sel[0])) <= tol) return "a";
         if (Math.abs(x - this._xOf(this._sel[1])) <= tol) return "b";
       }
+      if (Math.abs(x - this._xOf(this.currentTime)) <= tol) return "head";
       return null;
     }
     _down(e) {
@@ -457,6 +473,8 @@ input[type=range]{width:96px;accent-color:var(--accent)}
       this._muteBtn.innerHTML = m ? ICONS.mute : ICONS.vol;
       this._muteBtn.setAttribute("aria-label", m ? "Unmute" : "Mute");
     }
+    _setText(txt) { if (this._selText.textContent !== txt) this._selText.textContent = txt; }
+
     _render() {
       if (!this._cfg) return;
       const w = this._plot.clientWidth, t = this.currentTime;
@@ -471,11 +489,13 @@ input[type=range]{width:96px;accent-color:var(--accent)}
         Object.assign(this._dimL.style, { display: "block", left: "0", width: xa + "px" });
         Object.assign(this._dimR.style, { display: "block", left: xb + "px", width: Math.max(0, w - xb) + "px" });
         const len = s[1] - s[0];
-        this._selInfo.innerHTML = `${this._loop ? "Looping" : "Selection"} ${fmtTime(s[0] + this._label, 2)} – ${fmtTime(s[1] + this._label, 2)} (${len < 60 ? len.toFixed(2) + " s" : fmtTime(len)})<button type="button" title="Clear selection (Esc)" aria-label="Clear selection">✕</button>`;
-        this._selInfo.querySelector("button").onclick = () => this._setSel(null);
+        this._setText(`${this._loop ? "Looping" : "Selection"} ${fmtTime(s[0] + this._label, 2)} – ` +
+          `${fmtTime(s[1] + this._label, 2)} (${len < 60 ? len.toFixed(2) + " s" : fmtTime(len)})`);
+        this._selClear.hidden = false;
       } else {
         this._selEl.style.display = this._dimL.style.display = this._dimR.style.display = "none";
-        this._selInfo.textContent = "Drag across the spectrogram to select a region";
+        this._setText("Drag across the spectrogram to select a region");
+        this._selClear.hidden = true;
       }
     }
   }

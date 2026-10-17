@@ -22,6 +22,7 @@ import warnings
 from importlib import resources
 from pathlib import Path
 from typing import Literal, Optional, Union
+from urllib.parse import quote
 
 import numpy as np
 
@@ -127,22 +128,27 @@ def export_player(
     ext = {"image/png": "png", "image/webp": "webp", "image/jpeg": "jpg"}[img_mime]
     img_path = out / f"{stem}.{ext}"
     img_path.write_bytes(img_bytes)
-    cfg["image"] = img_path.name
+    cfg["image"] = quote(img_path.name)
     written = {"image": img_path}
 
     if audio_bytes is not None:
         a_ext = _ext_for_mime(audio_mime, source)
         a_path = out / f"{stem}{a_ext}"
-        if isinstance(source, np.ndarray) or Path(source).resolve() != a_path.resolve():
+        src_path = None if isinstance(source, np.ndarray) else Path(source).resolve()
+        if src_path is not None and src_path == a_path.resolve():
+            if audio_bytes != src_path.read_bytes():   # re-encoded/cropped: never overwrite the source
+                a_path = out / f"{stem}.player{a_ext}"
+                a_path.write_bytes(audio_bytes)
+        else:
             a_path.write_bytes(audio_bytes)
-        cfg["audio"] = a_path.name
+        cfg["audio"] = quote(a_path.name)
         written["audio"] = a_path
 
     meta_path = out / f"{stem}.json"
     meta_path.write_text(json.dumps(cfg, indent=1), encoding="utf-8")
     js_path = out / "specrender-player.js"
     js_path.write_text(player_js(), encoding="utf-8")
-    embed = f'<spectro-player meta="{html.escape(meta_path.name)}"></spectro-player>'
+    embed = f'<spectro-player meta="{html.escape(quote(meta_path.name))}"></spectro-player>'
     example = out / f"{stem}.html"
     example.write_text(_example_page(cfg.get("title") or stem, embed, theme), encoding="utf-8")
     written.update(meta=meta_path, script=js_path, example=example, embed=embed)
