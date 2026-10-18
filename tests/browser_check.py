@@ -179,6 +179,16 @@ def main(page_path: str, shot: str | None = None, offset_page: str | None = None
         check(wrapped and max(seen) < s["end"] + 0.4,
               f"loop holds without animation frames (max {max(seen):.2f}s vs end {s['end']:.2f}s)")
 
+        # compact player: the handle strip must not swallow the whole height
+        page.evaluate(f"{P}.setAttribute('height', '24'); {P}._plot.style.height = '24px'; 0")
+        small = page.evaluate(f"(() => {{ const r = {P}.shadowRoot.querySelector('.plot').getBoundingClientRect();"
+                              " return {x: r.x, y: r.y, w: r.width, h: r.height}; })()")
+        page.evaluate(f"{P}.selection = {{start: {P}.duration*0.4, end: {P}.duration*0.6}}; {P}.currentTime = {P}.duration*0.4")
+        sx = small["x"] + 0.4 * small["w"]; low = small["y"] + small["h"] - 3
+        page.mouse.move(sx, low); page.mouse.down()
+        page.mouse.move(small["x"] + 0.35 * small["w"], low); page.mouse.move(small["x"] + 0.3 * small["w"], low); page.mouse.up()
+        check(abs(sel()["start"] - dur * 0.3) < dur * 0.015, f"24 px tall player: edge still resizable ({sel()['start']:.2f}s)")
+
         check(not errors, f"no page errors during interaction {errors}")
 
         if offset_page:

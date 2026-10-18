@@ -14,7 +14,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 - `export_player` can no longer overwrite the source audio when the exported file name refers to the same file under another spelling (case-insensitive filesystems on macOS and Windows, or hard links).
-- The playhead stays draggable where it overlaps a selection edge: its top handle scrubs, and the rest of the edge resizes.
+- The playhead stays draggable where it overlaps a selection edge: its top handle scrubs, and the rest of the edge resizes. The handle area is capped at 35% of the player height, so short players keep a resize area.
 
 ## [0.1.0] - 2026-10-17
 

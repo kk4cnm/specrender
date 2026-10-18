@@ -406,7 +406,8 @@ input[type=range]{width:96px;accent-color:var(--accent)}
     // grabs the playhead; everywhere else the edge wins and resizes.
     _hit(clientX, clientY, pointerType) {
       const r = this._plot.getBoundingClientRect(), x = clientX - r.left, y = clientY - r.top;
-      const touch = pointerType === "touch", tol = touch ? 16 : 7, strip = touch ? 32 : 18;
+      const touch = pointerType === "touch", tol = touch ? 16 : 7;
+      const strip = Math.min(touch ? 32 : 18, r.height * 0.35);   // always leave room below to resize
       const nearHead = Math.abs(x - this._xOf(this.currentTime)) <= tol;
       if (nearHead && y <= strip) return "head";
       if (this._sel) {
