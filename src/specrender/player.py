@@ -15,6 +15,7 @@ import base64
 import html
 import io
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -134,10 +135,12 @@ def export_player(
     if audio_bytes is not None:
         a_ext = _ext_for_mime(audio_mime, source)
         a_path = out / f"{stem}{a_ext}"
-        src_path = None if isinstance(source, np.ndarray) else Path(source).resolve()
-        if src_path is not None and src_path == a_path.resolve():
+        src_path = None if isinstance(source, np.ndarray) else Path(source)
+        if src_path is not None and _same_file(src_path, a_path):
             if audio_bytes != src_path.read_bytes():   # re-encoded/cropped: never overwrite the source
                 a_path = out / f"{stem}.player{a_ext}"
+                if _same_file(src_path, a_path):       # pathological, but never clobber the input
+                    raise FileExistsError(f"Refusing to overwrite the source audio {src_path}")
                 a_path.write_bytes(audio_bytes)
         else:
             a_path.write_bytes(audio_bytes)
@@ -312,6 +315,16 @@ def _encode_ffmpeg(x: np.ndarray, sr: int, kind: str) -> bytes:
         if proc.returncode != 0:
             raise RuntimeError("ffmpeg failed: " + proc.stderr.decode(errors="replace").strip())
         return out.read_bytes()
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    """True if both paths are the same file on disk. Unlike comparing resolved
+    paths, this catches case-insensitive filesystems (macOS, Windows:
+    ``Rec.WAV`` vs ``Rec.wav``) and hard links."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:          # b doesn't exist yet
+        return False
 
 
 def _ext_for_mime(mime: str, source) -> str:

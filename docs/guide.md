@@ -174,7 +174,7 @@ audio plays over its spectrogram, with a playhead that follows playback.
 | Action | Result |
 |---|---|
 | Click anywhere | Jump there. A click outside the selection also clears it |
-| Drag the white playhead | Scrub |
+| Drag the white playhead | Scrub. Where the playhead overlaps a selection edge, grab it by its triangular handle at the top; lower down, the drag resizes the selection |
 | Drag across empty space | Select a region; the playhead moves to its start |
 | Drag a selection edge | Resize the selection |
 | Double-click, <kbd>Esc</kbd>, or ✕ | Clear the selection |

@@ -52,7 +52,7 @@
   border-right:1px solid var(--sel-edge);pointer-events:none;display:none}
 .head{position:absolute;top:0;bottom:0;left:0;width:2px;margin-left:-1px;background:var(--head);
   box-shadow:0 0 0 1px rgba(0,0,0,.45);pointer-events:none;will-change:transform}
-.head::before{content:"";position:absolute;top:0;left:-5px;border:6px solid transparent;border-top:7px solid var(--head);border-bottom:0}
+.head::before{content:"";position:absolute;top:0;left:-6px;border:7px solid transparent;border-top:9px solid var(--head);border-bottom:0}
 .hover{position:absolute;top:0;bottom:0;left:0;border-left:1px dashed rgba(255,255,255,.45);pointer-events:none;display:none}
 .tip{position:absolute;top:6px;left:0;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff;
   font-size:11px;white-space:nowrap;pointer-events:none;display:none;font-variant-numeric:tabular-nums}
@@ -400,23 +400,27 @@ input[type=range]{width:96px;accent-color:var(--accent)}
     }
 
     // ---- pointer
-    _hit(clientX, pointerType) {
-      const r = this._plot.getBoundingClientRect(), x = clientX - r.left;
-      const tol = pointerType === "touch" ? 16 : 7;
-      // Selection edges win over the playhead: after selecting, the playhead sits on
-      // the left edge, and the edge must stay resizable. Click inside to move the head.
+    // What a press at (clientX, clientY) grabs. The playhead and a selection edge
+    // often overlap (after selecting, the playhead sits on the left edge), so they
+    // get separate targets: the top strip, where the playhead's handle is drawn,
+    // grabs the playhead; everywhere else the edge wins and resizes.
+    _hit(clientX, clientY, pointerType) {
+      const r = this._plot.getBoundingClientRect(), x = clientX - r.left, y = clientY - r.top;
+      const touch = pointerType === "touch", tol = touch ? 16 : 7;
+      const strip = Math.min(touch ? 32 : 18, r.height * 0.35);   // always leave room below to resize
+      const nearHead = Math.abs(x - this._xOf(this.currentTime)) <= tol;
+      if (nearHead && y <= strip) return "head";
       if (this._sel) {
         if (Math.abs(x - this._xOf(this._sel[0])) <= tol) return "a";
         if (Math.abs(x - this._xOf(this._sel[1])) <= tol) return "b";
       }
-      if (Math.abs(x - this._xOf(this.currentTime)) <= tol) return "head";
-      return null;
+      return nearHead ? "head" : null;
     }
     _down(e) {
       if (e.button !== 0 || !this._cfg) return;
       this._plot.focus({ preventScroll: true });
       this._plot.setPointerCapture(e.pointerId);
-      const t = this._tAt(e.clientX), hit = this._hit(e.clientX, e.pointerType);
+      const t = this._tAt(e.clientX), hit = this._hit(e.clientX, e.clientY, e.pointerType);
       this._drag = { mode: hit || "pending", x0: e.clientX, t0: t, fixed: hit === "a" ? this._sel[1] : hit === "b" ? this._sel[0] : null };
       if (hit === "head") this._seek(t);
       e.preventDefault();
@@ -433,7 +437,7 @@ input[type=range]{width:96px;accent-color:var(--accent)}
       const tw = this._tip.offsetWidth;
       this._tip.style.transform = `translateX(${clamp(x + 10, 0, r.width - tw - 2)}px)`;
 
-      if (!d) { this._plot.classList.toggle("grab", !!this._hit(e.clientX)); return; }
+      if (!d) { this._plot.classList.toggle("grab", !!this._hit(e.clientX, e.clientY, e.pointerType)); return; }
       if (d.mode === "head") this._seek(t);
       else if (d.mode === "a" || d.mode === "b") this._setSel([d.fixed, t]);
       else if (d.mode === "pending" && Math.abs(e.clientX - d.x0) > 4) d.mode = "select";

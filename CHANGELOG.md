@@ -12,6 +12,10 @@ All notable changes to this project are documented here. The format follows
 - CLI: `-o file.html` / `-f html` writes a player. New `--audio`, `--audio-url` and `--web` options.
 - Browser end-to-end test (`tests/browser_check.py`), run in CI.
 
+### Fixed
+- `export_player` can no longer overwrite the source audio when the exported file name refers to the same file under another spelling (case-insensitive filesystems on macOS and Windows, or hard links).
+- The playhead stays draggable where it overlaps a selection edge: its top handle scrubs, and the rest of the edge resizes. The handle area is capped at 35% of the player height, so short players keep a resize area.
+
 ## [0.1.0] - 2026-10-17
 
 ### Added

@@ -85,6 +85,23 @@ def main(page_path: str, shot: str | None = None, offset_page: str | None = None
         check(abs(s["start"] - dur * .15) < dur * .01 and abs(s["end"] - dur * .3) < dur * .01,
               f"left edge under the playhead resizes to {s['start']:.2f}-{s['end']:.2f}s")
 
+        # ...while the playhead's handle (top strip) at that same spot still scrubs
+        page.evaluate(f"{P}.currentTime = {P}.selection.start")      # playhead exactly on the left edge
+        check(abs(t() - s["start"]) < 1e-3, "playhead placed on the left edge")
+        top = box["y"] + 6
+        page.mouse.move(X(0.15), top); page.mouse.down()
+        page.mouse.move(X(0.2), top); page.mouse.move(X(0.25), top); page.mouse.up()
+        s2 = sel()
+        check(abs(t() - dur * 0.25) < dur * 0.01 and abs(s2["start"] - s["start"]) < 1e-6 and abs(s2["end"] - s["end"]) < 1e-6,
+              f"handle at the top scrubs the overlapping playhead to {t():.2f}s, selection unchanged")
+
+        page.evaluate(f"{P}.currentTime = {P}.selection.start")
+        page.mouse.move(X(0.15), Y); page.mouse.down(); page.mouse.move(X(0.12), Y); page.mouse.move(X(0.1), Y); page.mouse.up()
+        s3 = sel()
+        check(abs(s3["start"] - dur * .1) < dur * .01, f"same spot lower down still resizes ({s3['start']:.2f}s)")
+        page.evaluate(f"{P}.selection = {{start: {s['start']}, end: {s['end']}}}")
+        s = sel()
+
         # the clear button keeps keyboard focus while playback re-renders every frame
         page.evaluate(f"{P}.shadowRoot.querySelector('.selclear').focus()")
         page.evaluate(f"{P}.play()"); time.sleep(0.4)
@@ -161,6 +178,16 @@ def main(page_path: str, shot: str | None = None, offset_page: str | None = None
         page.evaluate(f"{P}.pause(); window.requestAnimationFrame = window.__raf; 0")
         check(wrapped and max(seen) < s["end"] + 0.4,
               f"loop holds without animation frames (max {max(seen):.2f}s vs end {s['end']:.2f}s)")
+
+        # compact player: the handle strip must not swallow the whole height
+        page.evaluate(f"{P}.setAttribute('height', '24'); {P}._plot.style.height = '24px'; 0")
+        small = page.evaluate(f"(() => {{ const r = {P}.shadowRoot.querySelector('.plot').getBoundingClientRect();"
+                              " return {x: r.x, y: r.y, w: r.width, h: r.height}; })()")
+        page.evaluate(f"{P}.selection = {{start: {P}.duration*0.4, end: {P}.duration*0.6}}; {P}.currentTime = {P}.duration*0.4")
+        sx = small["x"] + 0.4 * small["w"]; low = small["y"] + small["h"] - 3
+        page.mouse.move(sx, low); page.mouse.down()
+        page.mouse.move(small["x"] + 0.35 * small["w"], low); page.mouse.move(small["x"] + 0.3 * small["w"], low); page.mouse.up()
+        check(abs(sel()["start"] - dur * 0.3) < dur * 0.015, f"24 px tall player: edge still resizable ({sel()['start']:.2f}s)")
 
         check(not errors, f"no page errors during interaction {errors}")
 
