@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-10-18
 
 ### Added
 - Interactive HTML player: `sr.player()` writes one self-contained page with the spectrogram and audio. Click to jump, drag the playhead to scrub, drag to select a region and loop it, resize the selection by its edges, and use the play/pause, volume, mute and speed controls, keyboard shortcuts, and the time and frequency readout on hover.
