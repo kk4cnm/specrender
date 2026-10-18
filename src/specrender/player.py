@@ -30,6 +30,7 @@ import numpy as np
 from .annotate import _fmt_hz
 from .audio import PathLike, load_audio
 from .core import Source, Spectrogram, _compute_keys, _image_keys, _to_scale, compute
+from .ticks import freq_ticks
 
 #: Extensions browsers play natively, with their MIME types.
 BROWSER_AUDIO = {
@@ -227,26 +228,10 @@ def _bands(channels: int, height: int, gap: int) -> list[dict]:
 
 
 def _freq_ticks(fmin: float, fmax: float, scale: str, band_px: float) -> list[dict]:
-    max_ticks = int(max(2, min(10, band_px // 30)))
-    if scale == "linear":
-        span = fmax - fmin
-        raw = span / max_ticks
-        mag = 10 ** np.floor(np.log10(raw))
-        step = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
-        first = np.ceil(fmin / step) * step
-        ticks = list(np.arange(first, fmax + step * 1e-6, step))
-    else:
-        cands = [m * 10.0 ** d for d in range(0, 7) for m in (1, 2, 5)]
-        ticks = [t for t in cands if fmin <= t <= fmax]
-        for drop in ((2,), (2, 5)):  # thin out: drop 2s, then 5s
-            if len(ticks) <= max_ticks:
-                break
-            ticks = [t for t in ticks if round(t / 10 ** np.floor(np.log10(t))) not in drop]
-        while len(ticks) > max_ticks:
-            ticks = ticks[::2]
+    """Frequency labels for one channel band, at least MIN_GAP_PX apart on screen."""
     lo, hi = _to_scale(fmin, scale), _to_scale(fmax, scale)
     out = []
-    for t in ticks:
+    for t in freq_ticks(fmin, fmax, scale, band_px):
         pos = float((_to_scale(t, scale) - lo) / (hi - lo))
         out.append({"hz": float(t), "label": _fmt_hz(float(t)) if t else "0", "pos": round(pos, 5)})
     return out

@@ -15,6 +15,17 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+LABEL_OVERLAP_JS = """(el) => {
+  const spans = [...el.shadowRoot.querySelectorAll('.yaxis span')].map(s => s.getBoundingClientRect());
+  let worst = Infinity;
+  for (let i = 0; i < spans.length; i++) for (let j = i + 1; j < spans.length; j++) {
+    const a = spans[i], b = spans[j];
+    const gap = Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom);   // < 0 means overlap
+    worst = Math.min(worst, gap);
+  }
+  return {n: spans.length, worst};
+}"""
+
 
 def main(page_path: str, shot: str | None = None, offset_page: str | None = None) -> None:
     url = Path(page_path).resolve().as_uri()
@@ -48,6 +59,8 @@ def main(page_path: str, shot: str | None = None, offset_page: str | None = None
         n_ticks = page.evaluate(f"{P}.shadowRoot.querySelectorAll('.xaxis span').length")
         n_yt = page.evaluate(f"{P}.shadowRoot.querySelectorAll('.yaxis span').length")
         check(n_ticks >= 3 and n_yt >= 2, f"axes drawn ({n_ticks} time ticks, {n_yt} freq labels)")
+        ov = page.locator("spectro-player").evaluate(LABEL_OVERLAP_JS)
+        check(ov["worst"] >= 0, f"frequency labels don't overlap (closest gap {ov['worst']:.1f}px)")
 
         # click to seek
         page.mouse.click(X(0.5), Y)
@@ -198,6 +211,8 @@ def main(page_path: str, shot: str | None = None, offset_page: str | None = None
             q.wait_for_timeout(300)
             ct = q.evaluate(f"{P}.currentTime")
             check(abs(ct) < 0.05, f"hosted audio with start offset begins at the view start ({ct:.2f})")
+            ov = q.locator("spectro-player").evaluate(LABEL_OVERLAP_JS)
+            check(ov["worst"] >= 0, f"second page: frequency labels don't overlap ({ov['n']} labels, closest gap {ov['worst']:.1f}px)")
             q.evaluate(f"{P}.play()"); q.wait_for_timeout(500)
             ft = q.evaluate(f"{P}.shadowRoot.querySelector('audio').currentTime")
             off = q.evaluate(f"JSON.parse({P}.querySelector('script').textContent).audio_offset")

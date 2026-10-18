@@ -291,3 +291,42 @@ def test_export_player_detects_same_file_under_another_name(tmp_path):
     out = sr.export_player(src, tmp_path, start=0.5, end=1.0, audio="wav")
     assert src.read_bytes() == before
     assert out["audio"].name == "Rec.player.wav"
+
+
+# --------------------------------------------------------------------------- #
+# Frequency-axis ticks
+# --------------------------------------------------------------------------- #
+from specrender.ticks import MIN_GAP_PX, freq_ticks
+from specrender.core import _to_scale
+
+
+@pytest.mark.parametrize("scale", ["linear", "log", "mel"])
+@pytest.mark.parametrize("axis_px", [48, 90, 120, 180, 240, 300, 600])
+@pytest.mark.parametrize("frange", [(20, 4000), (20, 8000), (20, 11025), (20, 22050), (50, 3000), (300, 3400)])
+def test_freq_ticks_never_closer_than_min_gap(scale, axis_px, frange):
+    fmin, fmax = frange
+    if scale == "linear":
+        fmin = 0 if fmin == 20 else fmin
+    ticks = freq_ticks(fmin, fmax, scale, axis_px)
+    lo, hi = _to_scale(fmin, scale), _to_scale(fmax, scale)
+    ys = sorted(float((_to_scale(t, scale) - lo) / (hi - lo) * axis_px) for t in ticks)
+    assert all(b - a >= MIN_GAP_PX - 1e-6 for a, b in zip(ys, ys[1:])), (ticks, ys)
+    assert len(ticks) >= 2 and all(fmin <= t <= fmax for t in ticks)
+
+
+def test_mel_240_drops_crowded_low_labels():
+    # The reported case: 20/50/100 Hz were 4-6 px apart on a 240 px mel axis
+    ticks = freq_ticks(20, 8000, "mel", 240)
+    assert 100 in ticks and 1000 in ticks and 20 not in ticks and 50 not in ticks
+
+
+def test_player_yticks_respect_gap(stereo_wav):
+    cfg = _player_cfg(sr.player(stereo_wav, scale="mel", height=240))
+    ys = sorted((1 - t["pos"]) * 240 for t in cfg["yticks"])
+    assert all(b - a >= MIN_GAP_PX - 1e-6 for a, b in zip(ys, ys[1:]))
+
+
+def test_annotated_mel_ticks_spaced(stereo_wav):
+    pytest.importorskip("matplotlib")
+    img = sr.render(stereo_wav, scale="mel", annotate=True, width=900, height=240)
+    assert img.size == (900, 240)

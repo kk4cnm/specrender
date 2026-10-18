@@ -60,6 +60,6 @@ jobs:
           from scipy.io import wavfile
           fs = 22050; t = np.arange(6 * fs) / fs
           wavfile.write("hosted.wav", fs, (0.3 * np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16))
-          sr.player("hosted.wav", "offset.html", audio_url="hosted.wav", start=2, end=4)
+          sr.player("hosted.wav", "offset.html", audio_url="hosted.wav", start=2, end=4, scale="mel", height=240)
           PY
       - run: python tests/browser_check.py docs/player-demo.html - offset.html
