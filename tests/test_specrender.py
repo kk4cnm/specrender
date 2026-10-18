@@ -276,3 +276,18 @@ def test_export_player_urlencodes_names(tmp_path):
     assert meta["image"] == "take%20%231.png" and meta["audio"] == "take%20%231.wav"
     assert out["embed"] == '<spectro-player meta="take%20%231.json"></spectro-player>'
     assert (tmp_path / "w" / "take #1.json").exists()
+
+
+def test_export_player_detects_same_file_under_another_name(tmp_path):
+    # macOS/Windows treat Rec.WAV and Rec.wav as one file; a hard link reproduces that on Linux
+    import os
+    src = tmp_path / "Rec.WAV"
+    wavfile.write(src, FS, (tone(800, 2.0) * 32767).astype(np.int16))
+    try:
+        os.link(src, tmp_path / "Rec.wav")
+    except OSError:
+        pytest.skip("filesystem has no hard links")
+    before = src.read_bytes()
+    out = sr.export_player(src, tmp_path, start=0.5, end=1.0, audio="wav")
+    assert src.read_bytes() == before
+    assert out["audio"].name == "Rec.player.wav"
