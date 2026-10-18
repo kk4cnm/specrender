@@ -40,8 +40,7 @@
 .title{margin:0 0 6px 52px;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grid{display:grid;grid-template-columns:48px 1fr;column-gap:4px}
 .yaxis{position:relative;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
-.yaxis span{position:absolute;right:4px;transform:translateY(-50%);white-space:nowrap}
-.yaxis span.edge-top{transform:none}.yaxis span.edge-bottom{transform:translateY(-100%)}
+.yaxis span{position:absolute;right:4px;transform:translateY(-50%);white-space:nowrap;line-height:15px}
 .plot{position:relative;overflow:hidden;border-radius:4px;cursor:crosshair;touch-action:none;
   background:#000;outline:none;user-select:none;-webkit-user-select:none}
 .plot:focus-visible{box-shadow:0 0 0 2px var(--accent)}
@@ -84,6 +83,7 @@ input[type=range]{width:96px;accent-color:var(--accent)}
 
   // ------------------------------------------------------------------ helpers
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const LABEL_HALF = 7.5;   // half of the 15 px frequency-label line box; keep in sync with player.LABEL_PX
 
   function fmtTime(t, dec = 1) {
     if (!isFinite(t)) t = 0;
@@ -288,9 +288,10 @@ input[type=range]{width:96px;accent-color:var(--accent)}
         for (const t of c.yticks || []) {
           const s = document.createElement("span");
           const frac = band.top + band.height * (1 - t.pos);   // from top of plot
-          s.style.top = (frac * 100) + "%";
-          if (t.pos >= 0.995) s.className = "edge-top";
-          else if (t.pos <= 0.005) s.className = "edge-bottom";
+          // Keep the whole label inside its channel band. Python picks ticks with
+          // the same clamp (label_px in ticks.freq_ticks), so clamped labels can't collide.
+          const top = band.top * 100, bottom = (band.top + band.height) * 100;
+          s.style.top = `clamp(calc(${top}% + ${LABEL_HALF}px), ${frac * 100}%, calc(${bottom}% - ${LABEL_HALF}px))`;
           s.textContent = t.label;
           y.appendChild(s);
         }

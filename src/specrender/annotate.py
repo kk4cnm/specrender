@@ -26,21 +26,6 @@ def _fmt_time(t: float, total: float) -> str:
     return f"{t:g}"
 
 
-def _freq_ticks(spec: "Spectrogram") -> list[float]:
-    from matplotlib.ticker import MaxNLocator
-
-    lo, hi = spec.fmin, spec.fmax
-    if spec.scale == "linear":
-        ticks = MaxNLocator(nbins=7, steps=[1, 2, 2.5, 5, 10]).tick_values(lo, hi)
-    else:
-        decades = range(int(np.floor(np.log10(max(lo, 1.0)))), int(np.ceil(np.log10(hi))) + 1)
-        ticks = [m * 10 ** d for d in decades for m in (1, 2, 5)]
-    ticks = [t for t in ticks if lo <= t <= hi]
-    while len(ticks) > 10:
-        ticks = ticks[::2]
-    return ticks
-
-
 def render_annotated(
     spec: "Spectrogram",
     levels: np.ndarray,
@@ -63,7 +48,10 @@ def render_annotated(
     except ImportError:
         raise ImportError("annotate=True requires matplotlib: pip install specrender[annotate]") from None
 
+    import matplotlib.font_manager  # noqa: F401  (rcParams font size -> points)
+
     from .core import _to_scale
+    from .ticks import freq_ticks
 
     fg, bg = ("#d8d8d8", "#111111") if theme == "dark" else ("#222222", "#ffffff")
     C = levels.shape[0]
@@ -80,12 +68,9 @@ def render_annotated(
         # Figure (not pyplot) so we never touch the caller's GUI backend
         fig = Figure(figsize=(width / dpi, height / dpi), dpi=dpi, layout="constrained")
         axes = fig.subplots(C, 1, sharex=True, squeeze=False)
-        ticks = _freq_ticks(spec)
-        tick_pos = (_to_scale(np.array(ticks), spec.scale) - s_lo) / (s_hi - s_lo) if ticks else []
         for c, ax in enumerate(axes[:, 0]):
             ax.imshow(levels[c], origin="lower", aspect="auto", cmap=cmap, vmin=0, vmax=1,
                       extent=(t0, t1, 0, 1), interpolation="antialiased")
-            ax.set_yticks(tick_pos, [_fmt_hz(t) for t in ticks])
             ax.set_ylabel("Hz" if C == 1 else f"ch{c} Hz")
         last = axes[-1, 0]
         last.set_xlabel("Time" if spec.duration >= 120 else "Time (s)")
@@ -96,6 +81,17 @@ def render_annotated(
             sm = ScalarMappable(norm=Normalize(*bounds), cmap=cmap)
             cb = fig.colorbar(sm, ax=axes[:, 0].tolist(), pad=0.01, fraction=0.04)
             cb.set_label("dBFS")
+
+        # Frequency ticks depend on the axes' real pixel height, known only after layout.
+        # Keep labels at least ~1.5 line-heights apart so they never collide.
+        fig.draw_without_rendering()
+        axis_px = axes[0, 0].get_window_extent().height
+        font_px = matplotlib.rcParams["ytick.labelsize"]
+        font_px = (matplotlib.font_manager.FontProperties(size=font_px).get_size_in_points()) * dpi / 72.0
+        ticks = freq_ticks(spec.fmin, spec.fmax, spec.scale, axis_px, min_gap_px=max(8.0, 1.5 * font_px))
+        tick_pos = (_to_scale(np.array(ticks), spec.scale) - s_lo) / (s_hi - s_lo) if ticks else []
+        for ax in axes[:, 0]:
+            ax.set_yticks(tick_pos, [_fmt_hz(t) for t in ticks])
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=dpi, facecolor=bg)
 

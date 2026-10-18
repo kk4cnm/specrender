@@ -13,6 +13,7 @@ All notable changes to this project are documented here. The format follows
 - Browser end-to-end test (`tests/browser_check.py`), run in CI.
 
 ### Fixed
+- Frequency labels no longer overlap. On mel scale at small heights, the 20, 50 and 100 Hz labels were drawn a few pixels apart. Ticks are now picked by importance and kept at least 16 px apart, in both the player and annotated images.
 - `export_player` can no longer overwrite the source audio when the exported file name refers to the same file under another spelling (case-insensitive filesystems on macOS and Windows, or hard links).
 - The playhead stays draggable where it overlaps a selection edge: its top handle scrubs, and the rest of the edge resizes. The handle area is capped at 35% of the player height, so short players keep a resize area.
 
