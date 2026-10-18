@@ -326,7 +326,61 @@ def test_player_yticks_respect_gap(stereo_wav):
     assert all(b - a >= MIN_GAP_PX - 1e-6 for a, b in zip(ys, ys[1:]))
 
 
-def test_annotated_mel_ticks_spaced(stereo_wav):
+def _clamped_label_centres(ticks, h, label_px):
+    half = label_px / 2
+    return sorted(min(max((1 - t["pos"]) * h, half), h - half) for t in ticks)
+
+
+@pytest.mark.parametrize("scale,fmin,fmax,h", [
+    ("log", 100, 1000, 60),       # end labels pulled inside used to collide here
+    ("mel", 20, 8000, 240), ("mel", 20, 22050, 60), ("log", 20, 8000, 48),
+    ("linear", 0, 8000, 40), ("linear", 300, 3400, 48),
+])
+def test_player_labels_dont_overlap_after_edge_clamp(scale, fmin, fmax, h):
+    from specrender.player import LABEL_PX, _freq_ticks
+    ys = _clamped_label_centres(_freq_ticks(fmin, fmax, scale, h), h, LABEL_PX)
+    assert all(b - a >= LABEL_PX for a, b in zip(ys, ys[1:])), ys
+
+
+def test_freq_ticks_tiny_axis_is_cheap():
+    import time
+    t0 = time.perf_counter()
+    for px in (1, 4, 8, 12):
+        assert len(freq_ticks(0, 22050, "linear", px)) <= 1
+    assert time.perf_counter() - t0 < 0.1
+
+
+def _annotated_ylabel_boxes(monkeypatch, src, **kw):
+    """Render an annotated image and return each axes' visible y-label boxes (px)."""
+    from matplotlib.figure import Figure
+    seen = {}
+    real = Figure.savefig
+
+    def spy(self, *a, **k):
+        out = real(self, *a, **k)
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        canvas = FigureCanvasAgg(self)
+        canvas.draw()                              # same layout as the saved image
+        r = canvas.get_renderer()
+        seen["boxes"] = [
+            sorted((lb.get_window_extent(r).y0, lb.get_window_extent(r).y1)
+                   for lb in ax.get_yticklabels() if lb.get_visible() and lb.get_text())
+            for ax in self.axes if ax.get_ylabel().endswith("Hz")]
+        return out
+
+    monkeypatch.setattr(Figure, "savefig", spy)
+    sr.render(src, annotate=True, **kw)
+    return seen["boxes"]
+
+
+@pytest.mark.parametrize("kw", [
+    dict(scale="mel", width=900, height=240),
+    dict(scale="mel", width=900, height=240, channel="all"),
+    dict(scale="log", fmin=100, fmax=1000, width=600, height=140),
+    dict(scale="linear", width=500, height=160),
+])
+def test_annotated_labels_dont_overlap(monkeypatch, stereo_wav, kw):
     pytest.importorskip("matplotlib")
-    img = sr.render(stereo_wav, scale="mel", annotate=True, width=900, height=240)
-    assert img.size == (900, 240)
+    for boxes in _annotated_ylabel_boxes(monkeypatch, stereo_wav, **kw):
+        assert len(boxes) >= 2
+        assert all(b[0] >= a[1] for a, b in zip(boxes, boxes[1:])), boxes

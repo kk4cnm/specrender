@@ -61,5 +61,7 @@ jobs:
           fs = 22050; t = np.arange(6 * fs) / fs
           wavfile.write("hosted.wav", fs, (0.3 * np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16))
           sr.player("hosted.wav", "offset.html", audio_url="hosted.wav", start=2, end=4, scale="mel", height=240)
+          sr.player("hosted.wav", "compact.html", scale="log", fmin=100, fmax=1000, height=60, audio="wav")
+          sr.player("hosted.wav", "stereo-mel.html", scale="mel", height=120, channel="all", audio="wav")
           PY
-      - run: python tests/browser_check.py docs/player-demo.html - offset.html
+      - run: python tests/browser_check.py docs/player-demo.html - offset.html compact.html stereo-mel.html

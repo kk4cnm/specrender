@@ -39,6 +39,10 @@ BROWSER_AUDIO = {
     ".aac": "audio/aac", ".webm": "audio/webm",
 }
 
+#: Height of a frequency label in the player (CSS line box). The player keeps
+#: labels inside the plot; tick spacing is measured with that clamp applied.
+LABEL_PX = 15.0
+
 AudioMode = Literal["auto", "original", "m4a", "mp3", "wav"]
 
 
@@ -187,6 +191,7 @@ def _build(source, *, audio_url, audio, max_embed_mb, title, theme, width, heigh
         title = Path(source).name
 
     lo, hi = spec.level_bounds(ikw.get("dynamic_range", 80.0), ikw.get("db_range"))
+    bands = _bands(spec.channels, int(height), int(ckw.get("channel_gap", 2)))
     cfg = {
         "version": 1,
         "title": title or "",
@@ -197,8 +202,8 @@ def _build(source, *, audio_url, audio, max_embed_mb, title, theme, width, heigh
         "fmin": float(spec.fmin),
         "fmax": float(spec.fmax),
         "height": int(height),
-        "channels": _bands(spec.channels, int(height), int(ckw.get("channel_gap", 2))),
-        "yticks": _freq_ticks(spec.fmin, spec.fmax, spec.scale, int(height) / max(1, spec.channels)),
+        "channels": bands,
+        "yticks": _freq_ticks(spec.fmin, spec.fmax, spec.scale, bands[0]["height"] * int(height)),
         "db_range": [round(lo, 1), round(hi, 1)],
         "sample_rate": int(spec.sample_rate),
         "theme": theme,
@@ -231,7 +236,7 @@ def _freq_ticks(fmin: float, fmax: float, scale: str, band_px: float) -> list[di
     """Frequency labels for one channel band, at least MIN_GAP_PX apart on screen."""
     lo, hi = _to_scale(fmin, scale), _to_scale(fmax, scale)
     out = []
-    for t in freq_ticks(fmin, fmax, scale, band_px):
+    for t in freq_ticks(fmin, fmax, scale, band_px, label_px=LABEL_PX):
         pos = float((_to_scale(t, scale) - lo) / (hi - lo))
         out.append({"hz": float(t), "label": _fmt_hz(float(t)) if t else "0", "pos": round(pos, 5)})
     return out

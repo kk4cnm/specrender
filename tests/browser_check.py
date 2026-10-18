@@ -1,6 +1,6 @@
 """End-to-end check of the HTML player in headless Chromium (Playwright).
 
-    python tests/browser_check.py PLAYER.html [SCREENSHOT.png|-] [OFFSET_PLAYER.html]
+    python tests/browser_check.py PLAYER.html [SCREENSHOT.png|-] [OFFSET_PLAYER.html] [LABELS_ONLY.html ...]
 
 Exercises: load, click-to-seek, playhead scrub, drag-select, edge resize,
 loop playback inside the selection, stop-at-end without loop, keyboard,
@@ -27,7 +27,7 @@ LABEL_OVERLAP_JS = """(el) => {
 }"""
 
 
-def main(page_path: str, shot: str | None = None, offset_page: str | None = None) -> None:
+def main(page_path: str, shot: str | None = None, offset_page: str | None = None, *label_pages: str) -> None:
     url = Path(page_path).resolve().as_uri()
     with sync_playwright() as pw:
         browser = pw.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
@@ -224,9 +224,17 @@ def main(page_path: str, shot: str | None = None, offset_page: str | None = None
             page.mouse.move(X(0.38), box["y"] + box["h"] * 0.3)
             page.screenshot(path=shot, clip={"x": 0, "y": 0, "width": 1280,
                                              "height": box["y"] + box["h"] + 120})
+        for extra in label_pages:                       # label-overlap check only
+            q = browser.new_page()
+            q.goto(Path(extra).resolve().as_uri())
+            q.wait_for_function(f"{P} && {P}.duration > 0")
+            ov = q.locator("spectro-player").evaluate(LABEL_OVERLAP_JS)
+            check(ov["n"] >= 2 and ov["worst"] >= 0,
+                  f"{Path(extra).name}: frequency labels don't overlap ({ov['n']} labels, closest gap {ov['worst']:.1f}px)")
+            q.close()
         browser.close()
     print("ALL PLAYER CHECKS PASSED")
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:4])
+    main(*sys.argv[1:])
